@@ -1,0 +1,33 @@
+#Simple read time from Picowbell
+#Joe Pardue 12/29/24
+import time
+import board
+import adafruit_ds3231
+
+# Initialize I2C
+i2c = board.STEMMA_I2C()  # Uses the default I2C pins on the Pico W
+
+# Initialize the RTC
+rtc = adafruit_ds3231.DS3231(i2c)
+
+# Function to format time into a common human-readable format
+def format_time(struct_time):
+    return "{}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+        struct_time.tm_year,
+        struct_time.tm_mon,
+        struct_time.tm_mday,
+        struct_time.tm_hour,
+        struct_time.tm_min,
+        struct_time.tm_sec,
+    )
+
+# Print the initial timestamp
+current_time = rtc.datetime
+print("Current RTC time:", format_time(current_time))
+
+# Example: Wait and read every second
+while True:
+    current_time = rtc.datetime
+    print("Current RTC time:", format_time(current_time))
+    time.sleep(1)
+
