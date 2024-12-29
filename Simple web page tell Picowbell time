@@ -1,0 +1,107 @@
+#Simple web page tell Picowbell time
+#Joe Pardue 12/29/24
+import wifi
+import socketpool
+import secrets
+import time
+import adafruit_ntp
+import rtc
+
+# Reset Wi-Fi stack
+wifi.radio.enabled = False
+wifi.radio.enabled = True
+
+# Connect to Wi-Fi
+print("Connecting to Wi-Fi...")
+try:
+    wifi.radio.connect(secrets.secrets["ssid"], secrets.secrets["password"])
+    print("Connected to Wi-Fi!")
+    print(f"Server running at http://{wifi.radio.ipv4_address}:8080")
+except Exception as e:
+    print("Error connecting to Wi-Fi:", e)
+    while True:
+        pass  # Halt if Wi-Fi connection fails
+
+# Create an NTP client to fetch Internet time
+pool = socketpool.SocketPool(wifi.radio)
+ntp = adafruit_ntp.NTP(pool, server="pool.ntp.org", tz_offset=0)
+rtc_clock = rtc.RTC()
+
+# Sync the internal clock with the NTP server
+try:
+    current_time = ntp.datetime
+    rtc_clock.datetime = current_time
+    print("Time synchronized with NTP server.")
+except Exception as e:
+    print(f"Error fetching time: {e}")
+    current_time = None
+
+# Create a socket
+try:
+    server = pool.socket()
+    server.bind(("0.0.0.0", 8080))  # Use port 8080
+    server.listen(1)
+    print("Server is listening...")
+except OSError as e:
+    print(f"Socket error: {e}")
+    print("Rebooting Pico W...")
+    time.sleep(2)
+    import microcontroller
+    microcontroller.reset()  # Reboot the Pico W if binding fails
+
+while True:
+    print("Waiting for a connection...")
+    client, addr = server.accept()  # Wait for a client to connect
+    print("Connection from", addr)
+
+    # Read the client's request
+    try:
+        buffer = bytearray(1024)  # Create a buffer for receiving data
+        bytes_received = client.recv_into(buffer)  # Use recv_into()
+        request = buffer[:bytes_received].decode("utf-8")  # Decode received bytes
+        print("Request:", request)
+
+        # Format Internet time as a string
+        if current_time:
+            internet_time = "{:04}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+                current_time.tm_year,
+                current_time.tm_mon,
+                current_time.tm_mday,
+                current_time.tm_hour,
+                current_time.tm_min,
+                current_time.tm_sec,
+            )
+        else:
+            internet_time = "Internet time not available."
+
+        # Format PicoW RTC time (Picowbell time) as a string
+        picowbell_time = "{:04}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+            rtc_clock.datetime.tm_year,
+            rtc_clock.datetime.tm_mon,
+            rtc_clock.datetime.tm_mday,
+            rtc_clock.datetime.tm_hour,
+            rtc_clock.datetime.tm_min,
+            rtc_clock.datetime.tm_sec,
+        )
+
+        # Prepare the HTTP response
+        response = f"""\
+HTTP/1.1 200 OK
+
+<!DOCTYPE html>
+<html>
+    <head><title>Pico W Server</title></head>
+    <body>
+        <h1>Hello, World!</h1>
+        <p>Internet Time: {internet_time}</p>
+        <p>Picowbell Time: {picowbell_time}</p>
+    </body>
+</html>
+"""
+        # Send the response
+        client.send(response.encode("utf-8"))
+    except Exception as e:
+        print("Error handling client:", e)
+    finally:
+        client.close()  # Close the connection
+
