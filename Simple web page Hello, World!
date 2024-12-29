@@ -1,0 +1,63 @@
+#Simple web page Hello, World!
+#Joe Pardue 12/29/24
+
+import wifi
+import socketpool
+import secrets
+import time
+
+# Reset Wi-Fi stack
+wifi.radio.enabled = False
+wifi.radio.enabled = True
+
+# Connect to Wi-Fi
+print("Connecting to Wi-Fi...")
+try:
+    wifi.radio.connect(secrets.secrets["ssid"], secrets.secrets["password"])
+    print("Connected to Wi-Fi!")
+    print(f"Server running at http://{wifi.radio.ipv4_address}:8080")
+except Exception as e:
+    print("Error connecting to Wi-Fi:", e)
+    while True:
+        pass  # Halt if Wi-Fi connection fails
+
+# Create a socket
+pool = socketpool.SocketPool(wifi.radio)
+
+try:
+    server = pool.socket()
+    server.bind(("0.0.0.0", 8080))  # Use port 8080
+    server.listen(1)
+    print("Server is listening...")
+except OSError as e:
+    print(f"Socket error: {e}")
+    print("Rebooting Pico W...")
+    time.sleep(2)
+    import microcontroller
+    microcontroller.reset()  # Reboot the Pico W if binding fails
+
+while True:
+    print("Waiting for a connection...")
+    client, addr = server.accept()  # Wait for a client to connect
+    print("Connection from", addr)
+
+    # Read the client's request
+    try:
+        buffer = bytearray(1024)  # Create a buffer for receiving data
+        bytes_received = client.recv_into(buffer)  # Use recv_into()
+        request = buffer[:bytes_received].decode("utf-8")  # Decode received bytes
+        print("Request:", request)
+
+        # Prepare the HTTP response
+        response = """\
+HTTP/1.1 200 OK
+
+Hello, World!
+"""
+        # Send the response
+        client.send(response.encode("utf-8"))
+    except Exception as e:
+        print("Error handling client:", e)
+    finally:
+        client.close()  # Close the connection
+
