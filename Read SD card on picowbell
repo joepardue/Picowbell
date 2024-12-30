@@ -1,0 +1,52 @@
+# Read SD card on picowbell
+# Joe Pardue 12/30/24
+
+import time
+import board
+import sdcardio
+import busio
+import storage
+import os  # Ensure 'os' is imported
+
+# SPI SD_CS pin
+SD_CS = board.GP17
+
+# SPI setup for SD card
+spi = busio.SPI(board.GP18, board.GP19, board.GP16)
+sdcard = sdcardio.SDCard(spi, SD_CS)
+vfs = storage.VfsFat(sdcard)
+
+# Mount SD card
+try:
+    storage.mount(vfs, "/sd")
+    print("SD card mounted successfully")
+except ValueError:
+    print("No SD card found. Check connections.")
+    while True:
+        pass  # Halt if no SD card is found
+
+# Function to read and display SD card contents
+def read_sd_card():
+    try:
+        # List all files and directories on the SD card
+        print("Listing SD card contents:")
+        for filename in os.listdir("/sd"):
+            print(f"Found: {filename}")
+            filepath = f"/sd/{filename}"
+            # Check if it's a file and read its contents
+            if not filename.startswith('.'):  # Ignore hidden files
+                try:
+                    with open(filepath, "r") as f:
+                        print(f"Contents of {filename}:")
+                        print(f.read())
+                        print("-" * 40)  # Separator for readability
+                except Exception as e:
+                    print(f"Could not read {filename}: {e}")
+    except Exception as e:
+        print(f"Error accessing SD card: {e}")
+
+# Main loop
+while True:
+    read_sd_card()  # Read and display SD card contents
+    time.sleep(10)  # Refresh every 10 seconds
+
