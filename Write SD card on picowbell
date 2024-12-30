@@ -1,0 +1,62 @@
+# Write SD card on picowbell - repeats 5 second writes of timestamp
+# Joe Pardue 12/30/24
+
+import time
+import board
+import sdcardio
+import busio
+import storage
+from adafruit_pcf8523.pcf8523 import PCF8523
+
+# Setup I2C for RTC
+i2c = busio.I2C(board.GP5, board.GP4)
+rtc = PCF8523(i2c)
+
+# SPI SD_CS pin
+SD_CS = board.GP17
+
+# SPI setup for SD card
+spi = busio.SPI(board.GP18, board.GP19, board.GP16)
+sdcard = sdcardio.SDCard(spi, SD_CS)
+vfs = storage.VfsFat(sdcard)
+
+# Mount SD card
+try:
+    storage.mount(vfs, "/sd")
+    print("SD card mounted")
+except ValueError:
+    print("No SD card found. Check connections.")
+    while True:
+        pass  # Halt if no SD card is found
+
+# To update the RTC, set `set_clock` to True and modify the date and time
+set_clock = False
+if set_clock:
+    # Set the RTC time: year, month, day, hour, minute, second, weekday (0=Monday), yearday, isdst
+    t = time.struct_time((2023, 3, 6, 12, 0, 0, 0, -1, -1))
+    rtc.datetime = t
+    print("RTC updated to:", t)
+
+# Function to format the time for logging
+def format_time(t):
+    return "{}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+        t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec
+    )
+
+# Log a timestamp every 5 seconds
+while True:
+    try:
+        # Get the current time from the RTC
+        t = rtc.datetime
+        timestamp = format_time(t)
+
+        # Write the timestamp to the SD card
+        with open("/sd/timestamps.txt", "a") as f:
+            f.write(f"{timestamp}\n")
+            print(f"Timestamp written to SD card: {timestamp}")
+
+        # Wait for 5 seconds before the next log
+        time.sleep(5)
+    except ValueError as e:
+        print(f"Error writing to SD card: {e}")
+        time.sleep(10)
