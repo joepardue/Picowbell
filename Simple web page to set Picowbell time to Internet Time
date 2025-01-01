@@ -1,6 +1,6 @@
 #Simple web page to set Picowbell time to Internet Time.
 #Joe Pardue 12/29/24
-# This may not work, causing repeated resets?
+
 import wifi
 import socketpool
 import secrets
