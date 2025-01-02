@@ -1,0 +1,34 @@
+# Hello, World! on OLED Display
+# Adafruit https://www.adafruit.com/product/326 OLED disply
+# NOTE: had to load font5x8.bin under CIRCUITPY
+
+import time
+import board
+import busio
+from adafruit_ssd1306 import SSD1306_I2C
+
+# Initialize I2C using board.STEMMA_I2C()
+i2c = board.STEMMA_I2C()
+
+# Define the OLED display parameters
+OLED_WIDTH = 128
+OLED_HEIGHT = 32
+
+# Create an SSD1306 I2C instance for the display
+display = SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, i2c, addr=0x3d)
+
+# Clear the display initially
+display.fill(0)
+display.show()
+
+# Write 'Hello, World!' to the display
+def hello_world():
+    display.fill(0)  # Clear display
+    display.text("Hello, World!", 0, 0, 1)  # Display text at (0, 0)
+    display.show()  # Update the display
+
+hello_world()
+
+# Keep the program running
+time.sleep(10)
+
