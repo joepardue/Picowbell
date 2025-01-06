@@ -1,0 +1,96 @@
+# Set rtc time via Internet
+# Joe Pardue 1/6/24
+
+
+import time
+import board
+import rtc
+import wifi
+import socketpool
+import ssl
+from adafruit_ds3231 import DS3231
+from adafruit_ntp import NTP
+from adafruit_ssd1306 import SSD1306_I2C
+from secrets import secrets
+
+# Initialize I2C, RTCs, and OLED display
+i2c = board.STEMMA_I2C()
+adalogger_rtc = DS3231(i2c)  # DS3231 RTC on Adalogger
+pico_rtc = rtc.RTC()  # Internal RTC on Pico W
+display = SSD1306_I2C(128, 64, i2c, addr=0x3D)  # OLED display
+
+# Clear the display initially
+display.fill(0)
+display.show()
+
+# Format the time for display
+def format_time(time_struct):
+    return "{:04}-{:02}-{:02} {:02}:{:02}:{:02}".format(
+        time_struct.tm_year,
+        time_struct.tm_mon,
+        time_struct.tm_mday,
+        time_struct.tm_hour,
+        time_struct.tm_min,
+        time_struct.tm_sec,
+    )
+
+# Display time on OLED
+def show_time_on_display(adalogger_time, pico_time, title=""):
+    display.fill(0)
+    display.text(title, 0, 0, 1)
+    display.text("Adalogger:", 0, 16, 1)
+    display.text(format_time(adalogger_time), 0, 32, 1)
+    display.text("Pico RTC:", 0, 48, 1)
+    display.text(format_time(pico_time), 0, 64, 1)
+    display.show()
+
+# Connect to Wi-Fi and synchronize with NTP
+def sync_with_ntp():
+    wifi.radio.connect(secrets["ssid"], secrets["password"])
+    pool = socketpool.SocketPool(wifi.radio)
+    ntp = NTP(pool, tz_offset=0)  # UTC time
+    return ntp.datetime
+
+# Show initial time from both RTCs
+adalogger_time = adalogger_rtc.datetime
+pico_time = pico_rtc.datetime
+print("Initial Adalogger Time:", format_time(adalogger_time))
+print("Initial Pico RTC Time:  ", format_time(pico_time))
+show_time_on_display(adalogger_time, pico_time, title="Initial Times")
+
+# Wait for 5 seconds to display the initial time
+time.sleep(5)
+
+# Sync time from NTP
+try:
+    print("Connecting to Wi-Fi and syncing with NTP...")
+    ntp_time = sync_with_ntp()
+    print("NTP Time:", format_time(ntp_time))
+
+    # Update both RTCs with NTP time
+    pico_rtc.datetime = ntp_time
+    adalogger_rtc.datetime = ntp_time
+    print("Pico RTC and Adalogger RTC updated with NTP time.")
+except Exception as e:
+    print("Failed to sync with NTP:", e)
+    display.fill(0)
+    display.text("NTP Sync Failed!", 0, 0, 1)
+    display.text(str(e), 0, 16, 1)
+    display.show()
+    raise
+
+# Show updated time from both RTCs
+adalogger_time = adalogger_rtc.datetime
+pico_time = pico_rtc.datetime
+print("Updated Adalogger Time:", format_time(adalogger_time))
+print("Updated Pico RTC Time:  ", format_time(pico_time))
+show_time_on_display(adalogger_time, pico_time, title="Updated Times")
+
+# Main loop to display both times continuously
+while True:
+    adalogger_time = adalogger_rtc.datetime
+    pico_time = pico_rtc.datetime
+    print("Adalogger Time:", format_time(adalogger_time))
+    print("Pico RTC Time:  ", format_time(pico_time))
+    show_time_on_display(adalogger_time, pico_time, title="Current Times")
+    time.sleep(1)
